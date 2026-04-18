@@ -1,13 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { loginWithPassword } from '../../services/adminService';
+import { loginWithPassword, isUserInAllowlist } from '../../services/adminService';
 import { signInWithGoogle, auth } from '../../firebase';
 import { Shield, ArrowRight, KeyRound } from 'lucide-react';
-
-// 관리자 UID 목록 (서비스 레이어와 동기화)
-const ADMIN_UIDS = [
-  "O8T7pyXh5Mfd5wx7fqJdkfqTzw1"
-];
 
 export default function AdminLogin() {
   const [step, setStep] = useState<1 | 2>(1);
@@ -22,7 +17,7 @@ export default function AdminLogin() {
     
     try {
       const user = await signInWithGoogle();
-      if (ADMIN_UIDS.includes(user.uid)) {
+      if (isUserInAllowlist(user)) {
         setStep(2);
       } else {
         setError('Unauthorized email. This account is not in the admin allowlist.');

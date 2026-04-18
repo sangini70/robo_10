@@ -10,12 +10,14 @@ import {
   orderBy, 
   limit 
 } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from '../firebase';
 import { MarketSignal } from '../types';
 import { clearCache } from './dataService';
 
 // 관리자 허용 목록 (UID 또는 이메일)
 const ADMIN_UIDS = [
+  "O8T7pyXh5Mfd5wx7fqJdkfqTzw1",
   "JB77pyXh5MTdSwk7fQldKfqTzww1"
 ];
 
@@ -23,36 +25,47 @@ const ADMIN_EMAILS = [
   "luganopizza@gmail.com"
 ];
 
-// 간단한 세션 관리 (브라우저 메모리에 저장)
-let isPasswordVerified = false;
+// 간단한 세션 관리 (브라우저 세션 스토리지 사용)
+const SESSION_KEY = 'robo_admin_verified';
+let isPasswordVerified = sessionStorage.getItem(SESSION_KEY) === 'true';
 
-export async function checkAuth(): Promise<boolean> {
-  const user = auth.currentUser;
-  if (!user) {
-    console.log("🔐 Auth Check: No current user");
-    return false;
-  }
-  
-  const userEmail = user.email ? user.email.toLowerCase().trim() : null;
+export function isUserInAllowlist(user: any): boolean {
+  if (!user) return false;
+  const userEmail = user.email?.toLowerCase().trim() || "";
   const userUid = user.uid;
   
-  const isAllowedEmail = userEmail && ADMIN_EMAILS.map(e => e.toLowerCase().trim()).includes(userEmail);
+  const isAllowedEmail = !!userEmail && ADMIN_EMAILS.map((e) => e.toLowerCase().trim()).includes(userEmail);
   const isAllowedUid = ADMIN_UIDS.includes(userUid);
   
-  console.log("🔐 ADMIN ALLOWLIST CHECK:", {
-    compareEmail: userEmail,
-    compareUid: userUid,
-    isAllowedEmail,
-    isAllowedUid,
-    allowedEmailsList: ADMIN_EMAILS,
-    allowedUidsList: ADMIN_UIDS,
-    isPasswordVerified
+  return isAllowedEmail || isAllowedUid;
+}
+
+export async function checkAuth(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      unsubscribe();
+
+      if (!user) {
+        console.log("🔐 Auth Check: No current user");
+        resolve(false);
+        return;
+      }
+
+      const isAllowed = isUserInAllowlist(user);
+
+      console.log("🔐 ADMIN ALLOWLIST CHECK:", {
+        userEmail: user.email,
+        userUid: user.uid,
+        isAllowed,
+        isPasswordVerified,
+        allowedEmailsList: ADMIN_EMAILS,
+        allowedUidsList: ADMIN_UIDS,
+      });
+
+      // 구글 로그인 성공(Allowlist) + 비밀번호 검증 성공 시에만 true
+      resolve(isAllowed && isPasswordVerified);
+    });
   });
-  
-  const isAllowed = !!(isAllowedEmail || isAllowedUid);
-  
-  // 구글 로그인 성공 + 비밀번호 검증 성공 시에만 true
-  return isAllowed && isPasswordVerified;
 }
 
 const SECURITY_DOC_PATH = 'settings/security';
@@ -74,6 +87,7 @@ export async function loginWithPassword(password: string): Promise<boolean> {
     
     if (password === adminPassword) {
       isPasswordVerified = true;
+      sessionStorage.setItem(SESSION_KEY, 'true');
       return true;
     }
     return false;
@@ -108,6 +122,7 @@ export async function changeAdminPassword(currentPassword: string, newPassword: 
 export async function logout(): Promise<void> {
   await auth.signOut();
   isPasswordVerified = false;
+  sessionStorage.removeItem(SESSION_KEY);
 }
 
 // Stats & Indexing
