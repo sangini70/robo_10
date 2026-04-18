@@ -16,7 +16,7 @@ import { clearCache } from './dataService';
 
 // 관리자 허용 목록 (UID 또는 이메일)
 const ADMIN_UIDS = [
-  "O8T7pyXh5Mfd5wx7fqJdkfqTzw1"
+  "JB77pyXh5MTdSwk7fQldKfqTzww1"
 ];
 
 const ADMIN_EMAILS = [
